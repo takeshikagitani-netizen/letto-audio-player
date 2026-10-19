@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>LETTO 音声プレーヤー</title>
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #ffffff; --ink: #1f2a37; --sub: #6b7280; --line: #e5e7eb;
+    --main: #1f3a5f; --main-soft: #e8eef6;
+    --input: #2e7d4f; --output: #b45309; --mini: #7c3aed; --final: #be123c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", sans-serif; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; }
+  header { text-align: center; padding: 8px 0 14px; }
+  header h1 { font-size: 20px; margin: 0; color: var(--main); }
+  header p { font-size: 12px; color: var(--sub); margin: 4px 0 0; }
+
+  /* 合言葉 */
+  #gate { background: var(--card); border-radius: 16px; padding: 24px 20px; margin-top: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); text-align: center; }
+  #gate p { font-size: 14px; line-height: 1.7; margin: 0 0 16px; }
+  #gate input { width: 100%; font-size: 18px; padding: 12px; border: 1px solid var(--line);
+    border-radius: 10px; text-align: center; }
+  #gate button { margin-top: 12px; width: 100%; padding: 12px; font-size: 16px; border: 0;
+    border-radius: 10px; background: var(--main); color: #fff; font-weight: bold; }
+  #gateErr { color: var(--final); font-size: 13px; min-height: 1.4em; margin-top: 8px; }
+
+  /* プレーヤー */
+  .player { position: sticky; top: 0; z-index: 2; background: var(--card); border-radius: 16px;
+    padding: 18px 16px 14px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  .now { text-align: center; }
+  .now .lesson { font-size: 22px; font-weight: bold; color: var(--main); }
+  .badge { display: inline-block; font-size: 12px; font-weight: bold; color: #fff;
+    padding: 3px 10px; border-radius: 999px; margin-top: 6px; }
+  .t-input { background: var(--input); } .t-output { background: var(--output); }
+  .t-mini { background: var(--mini); } .t-final { background: var(--final); }
+  .bar { margin: 16px 0 4px; height: 8px; background: var(--line); border-radius: 4px;
+    cursor: pointer; position: relative; touch-action: none; }
+  .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--main);
+    border-radius: 4px; width: 0; }
+  .times { display: flex; justify-content: space-between; font-size: 12px; color: var(--sub); }
+  .ctrl { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0 6px; }
+  .ctrl button { border: 0; background: var(--main-soft); color: var(--main); border-radius: 12px;
+    width: 52px; height: 48px; font-size: 12px; font-weight: bold; line-height: 1.2; }
+  .ctrl button.play { width: 68px; height: 68px; border-radius: 50%; background: var(--main);
+    color: #fff; font-size: 26px; }
+  .row { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .row .label { font-size: 12px; color: var(--sub); margin-right: 2px; }
+  .chip { border: 1px solid var(--main); background: #fff; color: var(--main); border-radius: 999px;
+    padding: 6px 11px; font-size: 13px; font-weight: bold; }
+  .chip.on { background: var(--main); color: #fff; }
+  @media (max-width: 420px) {
+    .chip { padding: 6px 8px; font-size: 12px; }
+    .row { gap: 4px; }
+  }
+
+  /* 一覧 */
+  .list { background: var(--card); border-radius: 16px; margin-top: 14px; padding: 8px 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+  .list h2 { font-size: 15px; margin: 8px 16px 6px; }
+  .item { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    border-top: 1px solid var(--line); cursor: pointer; }
+  .item .no { font-weight: bold; min-width: 82px; }
+  .item .file { margin-left: auto; font-size: 12px; color: var(--sub); }
+  .item.cur { background: var(--main-soft); }
+  .item.cur .no::before { content: "▶ "; color: var(--main); }
+  footer { font-size: 11px; color: var(--sub); line-height: 1.7; margin-top: 18px; }
+  footer a { color: var(--sub); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>LETTO 音声プレーヤー</h1>
+    <p>『［新版］NOBU式トレーニング コンプリートコース 話すための中学英語』（IBCパブリッシング）の音声用</p>
+  </header>
+
+  <section id="gate">
+    <p>受講生の方専用のページです。<br>コーチからお伝えした合言葉を入れてください。</p>
+    <input id="pass" type="password" autocomplete="off" placeholder="合言葉">
+    <button id="enter">ひらく</button>
+    <div id="gateErr"></div>
+  </section>
+
+  <main id="app" class="hidden">
+    <section class="player">
+      <div class="now">
+        <div class="lesson" id="nowLesson">Lesson 01</div>
+        <span class="badge t-input" id="nowType">INPUT</span>
+      </div>
+      <div class="bar" id="bar"><span id="barFill"></span></div>
+      <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+      <div class="ctrl">
+        <button id="b10">−10<br>秒</button>
+        <button id="b5">−5<br>秒</button>
+        <button class="play" id="play" aria-label="再生">▶</button>
+        <button id="f5">+5<br>秒</button>
+        <button id="f10">+10<br>秒</button>
+      </div>
+      <div class="row" id="speeds"><span class="label">速さ</span></div>
+      <div class="row">
+        <span class="label">くり返し</span>
+        <button class="chip" id="repeat">この1本をくり返す</button>
+      </div>
+    </section>
+
+    <section class="list">
+      <h2>レッスン一覧</h2>
+      <div id="items"></div>
+    </section>
+
+    <footer>
+      音声は IBCパブリッシングの書籍購入者向け配布ページから再生しています。書籍をお持ちの受講生の方のみお使いください。URL・合言葉は他の方に共有しないでください。<br>
+      このページでは、利用状況を知るためにアクセス解析（Google アナリティクス）を使う場合があります。お名前などの個人を特定する情報は集めません。速さ・続きの位置は、お使いの端末の中にだけ保存されます。
+    </footer>
+  </main>
+  <audio id="audio" preload="metadata"></audio>
+</div>
+
+<script>
+(() => {
+  // ===== 設定 =====
+  const PASS_HASH = '3c457cf4bc951d254d563cb7404bbd8c1e5da4555a93889fbe36ed3e93d91761'; // 合言葉のSHA-256（仮）
+  const AUDIO_BASE = 'https://ibcpub.co.jp/audio_dl/0798/asset/audio_mp3/';
+  const GA4_ID = ''; // 例 'G-XXXXXXX'。空なら解析は動かない
+  const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+  const KEY = 'letto_player_v1';
+
+  // ===== トラック表（書籍の構成から作成。1レッスン＝INPUT/OUTPUT の2本、要所に Mini Test、L21/L49/L67 は Final Test）=====
+  const MINI = [3,7,10,13,16,20,25,28,31,36,41,44,48,52,56,60,63,66];
+  const FINAL = [21,49,67];
+  const TRACKS = [];
+  for (let l = 1; l <= 67; l++) {
+    if (MINI.includes(l)) TRACKS.push({ lesson: l, type: 'Mini Test' });
+    else if (FINAL.includes(l)) { TRACKS.push({ lesson: l, type: 'Final Test INPUT' }); TRACKS.push({ lesson: l, type: 'Final Test OUTPUT' }); }
+    else { TRACKS.push({ lesson: l, type: 'INPUT' }); TRACKS.push({ lesson: l, type: 'OUTPUT' }); }
+  }
+  TRACKS.forEach((t, i) => { t.no = i + 1; t.file = String(i + 1).padStart(3, '0') + '.mp3'; });
+
+  const $ = id => document.getElementById(id);
+  const audio = $('audio');
+  const fmt = s => isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '0:00';
+  const typeClass = t => t.startsWith('Final') ? 't-final' : t === 'Mini Test' ? 't-mini' : t === 'OUTPUT' ? 't-output' : 't-input';
+  const lessonLabel = t => 'Lesson ' + String(t.lesson).padStart(2, '0');
+
+  // ===== 保存（端末内のみ）=====
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
+  const save = patch => { try { localStorage.setItem(KEY, JSON.stringify({ ...load(), ...patch })); } catch (e) {} };
+
+  // ===== 解析 =====
+  function track(name, params) { if (window.gtag) gtag('event', name, params || {}); }
+  if (GA4_ID) {
+    const s = document.createElement('script');
+    s.async = true; s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA4_ID;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { dataLayer.push(arguments); };
+    gtag('js', new Date()); gtag('config', GA4_ID);
+  }
+
+  // ===== 合言葉 =====
+  // SHA-256（httpsでない環境でも動くよう自前で計算）
+  async function sha256(text) {
+    const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    const bytes = [...new TextEncoder().encode(text)];
+    const bitLen = bytes.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bitLen >>> (i * 8)) & 0xff);
+    let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    const rot = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let o = 0; o < bytes.length; o += 64) {
+      const w = new Array(64);
+      for (let i = 0; i < 16; i++) w[i] = (bytes[o+4*i] << 24) | (bytes[o+4*i+1] << 16) | (bytes[o+4*i+2] << 8) | bytes[o+4*i+3];
+      for (let i = 16; i < 64; i++) {
+        const s0 = rot(w[i-15], 7) ^ rot(w[i-15], 18) ^ (w[i-15] >>> 3);
+        const s1 = rot(w[i-2], 17) ^ rot(w[i-2], 19) ^ (w[i-2] >>> 10);
+        w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+      }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let i = 0; i < 64; i++) {
+        const t1 = (h + (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+        const t2 = ((rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      H = H.map((v, i) => (v + [a, b, c, d, e, f, g, h][i]) | 0);
+    }
+    return H.map(v => (v >>> 0).toString(16).padStart(8, '0')).join('');
+  }
+  async function tryEnter(value, silent) {
+    if (value && await sha256(value.trim()) === PASS_HASH) {
+      save({ ok: PASS_HASH });
+      $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
+      start(); return true;
+    }
+    if (!silent) $('gateErr').textContent = '合言葉がちがいます。';
+    return false;
+  }
+  $('enter').onclick = () => tryEnter($('pass').value);
+  $('pass').addEventListener('keydown', e => { if (e.key === 'Enter') tryEnter($('pass').value); });
+  if (load().ok === PASS_HASH) { $('gate').classList.add('hidden'); $('app').classList.remove('hidden'); }
+
+  // ===== プレーヤー =====
+  let cur = 1, started = false, repeatOne = false;
+
+  function render() {
+    $('items').innerHTML = TRACKS.map(t =>
+      `<div class="item" data-no="${t.no}"><span class="no">${lessonLabel(t)}</span>` +
+      `<span class="badge ${typeClass(t.type)}">${t.type}</span><span class="file">${t.file}</span></div>`).join('');
+    $('speeds').insertAdjacentHTML('beforeend',
+      SPEEDS.map(v => `<button class="chip" data-sp="${v}">${v}倍</button>`).join(''));
+  }
+
+  function select(no, opts = {}) {
+    cur = Math.min(Math.max(no, 1), TRACKS.length);
+    const t = TRACKS[cur - 1];
+    audio.src = AUDIO_BASE + t.file;
+    audio.playbackRate = load().speed || 1;
+    $('nowLesson').textContent = lessonLabel(t);
+    $('nowType').textContent = t.type;
+    $('nowType').className = 'badge ' + typeClass(t.type);
+    document.querySelectorAll('.item').forEach(el => el.classList.toggle('cur', +el.dataset.no === cur));
+    const el = document.querySelector(`.item[data-no="${cur}"]`);
+    if (el && !opts.noScroll) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    save({ track: cur, pos: opts.pos || 0 });
+    if (opts.pos) audio.addEventListener('loadedmetadata', () => { audio.currentTime = opts.pos; }, { once: true });
+    if (opts.play) playNow();
+    updateMedia(t);
+  }
+
+  function playNow() {
+    audio.playbackRate = load().speed || 1;
+    audio.play().catch(() => {});
+    track('play', { track_no: cur });
+  }
+  function toggle() { audio.paused ? playNow() : audio.pause(); }
+  function seek(d) { if (isFinite(audio.duration)) audio.currentTime = Math.min(Math.max(audio.currentTime + d, 0), audio.duration - 0.2); }
+  function setSpeed(v) {
+    audio.playbackRate = v; save({ speed: v });
+    document.querySelectorAll('[data-sp]').forEach(b => b.classList.toggle('on', +b.dataset.sp === v));
+  }
+
+  // ロック画面・イヤホンのボタン
+  function updateMedia(t) {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `${lessonLabel(t)} ${t.type}`, artist: 'NOBU式トレーニング コンプリートコース', album: 'LETTO 音声プレーヤー'
+    });
+  }
+  if ('mediaSession' in navigator) {
+    const ms = navigator.mediaSession;
+    ms.setActionHandler('play', playNow);
+    ms.setActionHandler('pause', () => audio.pause());
+    ms.setActionHandler('previoustrack', () => select(cur - 1, { play: true }));
+    ms.setActionHandler('nexttrack', () => select(cur + 1, { play: true }));
+    ms.setActionHandler('seekbackward', () => seek(-10));
+    ms.setActionHandler('seekforward', () => seek(10));
+  }
+
+  function start() {
+    if (started) return; started = true;
+    render();
+    const st = load();
+    setSpeed(st.speed || 1);
+    select(st.track || 1, { pos: st.pos || 0 });
+
+    $('play').onclick = toggle;
+    $('b10').onclick = () => seek(-10); $('b5').onclick = () => seek(-5);
+    $('f5').onclick = () => seek(5);   $('f10').onclick = () => seek(10);
+    $('speeds').onclick = e => { const b = e.target.closest('[data-sp]'); if (b) setSpeed(+b.dataset.sp); };
+    $('repeat').onclick = () => { repeatOne = !repeatOne; $('repeat').classList.toggle('on', repeatOne); };
+    $('items').onclick = e => { const it = e.target.closest('.item'); if (it) select(+it.dataset.no, { play: true, noScroll: true }); };
+
+    const bar = $('bar');
+    const jump = x => { const r = bar.getBoundingClientRect(); if (isFinite(audio.duration)) audio.currentTime = Math.min(Math.max((x - r.left) / r.width, 0), 1) * audio.duration; };
+    bar.addEventListener('pointerdown', e => { jump(e.clientX); bar.setPointerCapture(e.pointerId); });
+    bar.addEventListener('pointermove', e => { if (e.buttons) jump(e.clientX); });
+
+    let lastSave = 0;
+    audio.addEventListener('timeupdate', () => {
+      const d = audio.duration;
+      $('cur').textContent = fmt(audio.currentTime);
+      $('barFill').style.width = isFinite(d) ? (audio.currentTime / d * 100) + '%' : '0';
+      if (Date.now() - lastSave > 3000) { save({ track: cur, pos: Math.floor(audio.currentTime) }); lastSave = Date.now(); }
+    });
+    audio.addEventListener('loadedmetadata', () => { $('dur').textContent = fmt(audio.duration); });
+    audio.addEventListener('play', () => { $('play').textContent = '❚❚'; $('play').setAttribute('aria-label', '一時停止'); });
+    audio.addEventListener('pause', () => { $('play').textContent = '▶'; $('play').setAttribute('aria-label', '再生'); save({ track: cur, pos: Math.floor(audio.currentTime) }); });
+    audio.addEventListener('ended', () => {
+      track('complete', { track_no: cur });
+      if (repeatOne) { audio.currentTime = 0; playNow(); }
+      else if (cur < TRACKS.length) select(cur + 1, { play: true });
+      else save({ track: cur, pos: 0 });
+    });
+    audio.addEventListener('error', () => {
+      if (audio.src) alert('音声を読み込めませんでした。インターネットにつながっているか確認して、もう一度お試しください。');
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.code === 'Space') { e.preventDefault(); toggle(); }
+      else if (e.code === 'ArrowLeft') seek(-5);
+      else if (e.code === 'ArrowRight') seek(5);
+      else if (e.code === 'ArrowUp') { e.preventDefault(); select(cur - 1); }
+      else if (e.code === 'ArrowDown') { e.preventDefault(); select(cur + 1); }
+    });
+  }
+  if (load().ok === PASS_HASH) start();
+})();
+</script>
+</body>
+</html>
