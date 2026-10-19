@@ -103,6 +103,12 @@
         <button id="f10">+10<br>秒</button>
       </div>
       <div class="row" id="speeds"><span class="label">速さ</span></div>
+      <div class="row" id="filters">
+        <span class="label">聞く順</span>
+        <button class="chip" data-f="all">すべて</button>
+        <button class="chip" data-f="input">INPUTだけ</button>
+        <button class="chip" data-f="output">OUTPUTだけ</button>
+      </div>
       <div class="row">
         <span class="label">くり返し</span>
         <button class="chip" id="repeat">この1本をくり返す</button>
@@ -206,7 +212,22 @@
   if (load().ok === PASS_HASH) { $('gate').classList.add('hidden'); $('app').classList.remove('hidden'); }
 
   // ===== プレーヤー =====
-  let cur = 1, started = false, repeatOne = false;
+  let cur = 1, started = false, repeatOne = false, filter = 'all';
+
+  // 聞く順：INPUTだけ＝INPUT と Final Test INPUT／OUTPUTだけ＝OUTPUT と Final Test OUTPUT（Mini Test は「すべて」のときだけ）
+  const inFilter = t => filter === 'all' || (filter === 'input' ? /INPUT$/.test(t.type) : /OUTPUT$/.test(t.type));
+  const visible = () => TRACKS.filter(inFilter).map(t => t.no);
+  function step(dir) {
+    const v = visible(); if (!v.length) return null;
+    const next = dir > 0 ? v.find(n => n > cur) : [...v].reverse().find(n => n < cur);
+    return next || null;
+  }
+  function setFilter(f) {
+    filter = f; save({ filter: f });
+    document.querySelectorAll('[data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+    document.querySelectorAll('.item').forEach(el => el.classList.toggle('hidden', !inFilter(TRACKS[+el.dataset.no - 1])));
+    track('filter', { filter: f });
+  }
 
   function render() {
     $('items').innerHTML = TRACKS.map(t =>
@@ -256,8 +277,8 @@
     const ms = navigator.mediaSession;
     ms.setActionHandler('play', playNow);
     ms.setActionHandler('pause', () => audio.pause());
-    ms.setActionHandler('previoustrack', () => select(cur - 1, { play: true }));
-    ms.setActionHandler('nexttrack', () => select(cur + 1, { play: true }));
+    ms.setActionHandler('previoustrack', () => { const n = step(-1); if (n) select(n, { play: true }); });
+    ms.setActionHandler('nexttrack', () => { const n = step(1); if (n) select(n, { play: true }); });
     ms.setActionHandler('seekbackward', () => seek(-10));
     ms.setActionHandler('seekforward', () => seek(10));
   }
@@ -267,7 +288,13 @@
     render();
     const st = load();
     setSpeed(st.speed || 1);
+    setFilter(st.filter || 'all');
     select(st.track || 1, { pos: st.pos || 0 });
+    $('filters').onclick = e => {
+      const b = e.target.closest('[data-f]'); if (!b) return;
+      setFilter(b.dataset.f);
+      if (!inFilter(TRACKS[cur - 1])) { const n = step(1) || visible()[0]; if (n) select(n); }
+    };
 
     $('play').onclick = toggle;
     $('b10').onclick = () => seek(-10); $('b5').onclick = () => seek(-5);
@@ -294,8 +321,7 @@
     audio.addEventListener('ended', () => {
       track('complete', { track_no: cur });
       if (repeatOne) { audio.currentTime = 0; playNow(); }
-      else if (cur < TRACKS.length) select(cur + 1, { play: true });
-      else save({ track: cur, pos: 0 });
+      else { const n = step(1); if (n) select(n, { play: true }); else save({ track: cur, pos: 0 }); }
     });
     audio.addEventListener('error', () => {
       if (audio.src) alert('音声を読み込めませんでした。インターネットにつながっているか確認して、もう一度お試しください。');
@@ -306,8 +332,8 @@
       if (e.code === 'Space') { e.preventDefault(); toggle(); }
       else if (e.code === 'ArrowLeft') seek(-5);
       else if (e.code === 'ArrowRight') seek(5);
-      else if (e.code === 'ArrowUp') { e.preventDefault(); select(cur - 1); }
-      else if (e.code === 'ArrowDown') { e.preventDefault(); select(cur + 1); }
+      else if (e.code === 'ArrowUp') { e.preventDefault(); const n = step(-1); if (n) select(n); }
+      else if (e.code === 'ArrowDown') { e.preventDefault(); const n = step(1); if (n) select(n); }
     });
   }
   if (load().ok === PASS_HASH) start();
